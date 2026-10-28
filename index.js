@@ -10,7 +10,7 @@ const pino = require('pino');
 const http = require('http');
 require('dotenv').config();
 
-// 1. Server HTTP bash Render yb9a dima 7ay m3a UptimeRobot
+// 1. Server HTTP bash Render yb9a dima 7ay
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('WhatsApp Gemini Bot is alive 24/7!\n');
@@ -18,7 +18,7 @@ const server = http.createServer((req, res) => {
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
 
-// 2. Multi-API Keys Rotation
+// 2. Gemini Multi-Keys Rotation
 const apiKeysEnv = process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || '';
 const API_KEYS = apiKeysEnv.split(',').map(key => key.trim()).filter(Boolean);
 let currentKeyIndex = 0;
@@ -45,6 +45,31 @@ function isRateLimited(sender) {
     limit.count++;
     rateLimits.set(sender, limit);
     return limit.count > 15;
+}
+
+// Function dial Image Generation b FLUX.1-schnell (Hugging Face)
+async function generateFluxImage(prompt) {
+    const hfToken = process.env.HF_TOKEN;
+    const endpoint = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell";
+
+    const headers = { "Content-Type": "application/json" };
+    if (hfToken) {
+        headers["Authorization"] = `Bearer ${hfToken}`;
+    }
+
+    const response = await fetch(endpoint, {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify({ inputs: prompt })
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HF Error (${response.status}): ${errorText}`);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
 }
 
 async function startBot() {
@@ -82,7 +107,7 @@ async function startBot() {
                 setTimeout(() => startBot(), 3000);
             }
         } else if (connection === 'open') {
-            console.log('WhatsApp Bot is ONLINE and ready with HD Flux & Multimodal!');
+            console.log('WhatsApp Bot is ONLINE and ready with FLUX.1!');
         }
     });
 
@@ -94,7 +119,6 @@ async function startBot() {
         const isGroup = sender.endsWith('@g.us');
         const botNumber = sock.user?.id ? (sock.user.id.split(':')[0] + '@s.whatsapp.net') : '';
 
-        // Istikhraj l-message l-7a9i9i 7etta ila kan ephemeral awla viewOnce
         const rawMessage = m.message.ephemeralMessage?.message || 
                            m.message.viewOnceMessage?.message || 
                            m.message;
@@ -119,12 +143,13 @@ async function startBot() {
 
         // Anti-spam
         if (isRateLimited(sender)) {
-            await sock.sendMessage(sender, { text: '⚠️ Sifti bzaf d les messages f d9i9a. Sber d9i9a 3afak.' }, { quoted: m });
+            await sock.sendMessage(sender, { text: '⚠️ Sifti bzaf d les messages. Sber d9i9a 3afak.' }, { quoted: m });
             return;
         }
 
-        // Commande dial Clear
         const cleanText = textContent.trim().toLowerCase();
+
+        // Commande Clear
         if (cleanText === 'clear' || cleanText === 'كلير') {
             userChats.delete(sender);
             await sock.sendMessage(sender, { text: '✅ Safi, ms7t l-hadra li dazt kamla!' }, { quoted: m });
@@ -132,44 +157,37 @@ async function startBot() {
         }
 
         // ==========================================
-        // 1. Generation d t-Tsawer HD (FLUX - Sans Filigrane)
+        // 1. Generation d t-Tsawer b FLUX.1 (/image)
         // ==========================================
         if (textContent.startsWith('/image') || textContent.startsWith('!image') || textContent.startsWith('/صورة')) {
             const imagePrompt = textContent.replace(/^(\/image|!image|\/صورة)/, '').trim();
 
             if (!imagePrompt) {
                 await sock.sendMessage(sender, { 
-                    text: '⚠️ Kteb l-wasf dial tswira, mital:\n`/image ultra realistic luxury car in casablanca night 8k`' 
+                    text: '⚠️ Kteb l-wasf dial tswira, mital:\n`/image hyper-realistic luxury sports car in desert 8k`' 
                 }, { quoted: m });
                 return;
             }
 
             try {
                 await sock.sendPresenceUpdate('composing', sender);
-                await sock.sendMessage(sender, { text: '🎨 Blati d9i9a, kan-generi lik tswira b qualité HD (Flux)...' }, { quoted: m });
+                await sock.sendMessage(sender, { text: '🎨 Blati d9i9a, kan-generi lik tswira b model FLUX.1 HD...' }, { quoted: m });
 
-                const seed = Math.floor(Math.random() * 1000000);
-                const encodedPrompt = encodeURIComponent(imagePrompt);
-                
-                // Mkhdmin model=flux m3a no-logo bash tji qualité wa3ra w n9iya bla 3alama ma2iya
-                const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?model=flux&width=1024&height=1024&seed=${seed}&nologo=true&enhance=true`;
-
-                const res = await fetch(imageUrl);
-                if (!res.ok) throw new Error('Mochkil f telechargement d l-tswira');
-
-                const arrayBuffer = await res.arrayBuffer();
-                const buffer = Buffer.from(arrayBuffer);
+                const imageBuffer = await generateFluxImage(imagePrompt);
 
                 await sock.sendPresenceUpdate('paused', sender);
                 await sock.sendMessage(sender, { 
-                    image: buffer, 
-                    caption: `✨ *${imagePrompt}*` 
+                    image: imageBuffer, 
+                    caption: `✨ *${imagePrompt}*\n*(FLUX.1 HD)*` 
                 }, { quoted: m });
                 return;
+
             } catch (err) {
-                console.error('Image Error:', err);
+                console.error('FLUX Generation Error:', err);
                 await sock.sendPresenceUpdate('paused', sender);
-                await sock.sendMessage(sender, { text: '⚠️ Tra mochkil f generation dial t-tswira. 3awd jereb.' }, { quoted: m });
+                await sock.sendMessage(sender, { 
+                    text: '⚠️ Tra mochkil f generation dial FLUX. Ila kant l-API fiha z7am, 3awd jereb mn hna d9i9a.' 
+                }, { quoted: m });
                 return;
             }
         }
@@ -247,7 +265,6 @@ async function startBot() {
                         systemInstruction: systemPrompt
                     });
 
-                    // L-chat textuel kay-sta3mel history bach y-39el 3la l-hadra
                     if (msgType !== 'imageMessage' && msgType !== 'audioMessage' && msgType !== 'documentMessage') {
                         if (!userChats.has(sender)) userChats.set(sender, []);
                         const history = userChats.get(sender);
@@ -262,7 +279,6 @@ async function startBot() {
                         );
                         if (history.length > 16) history.splice(0, history.length - 16);
                     } else {
-                        // Multimodal direct (audio, vision, pdf)
                         const result = await model.generateContent(contents);
                         responseText = result.response.text();
                     }
@@ -273,7 +289,7 @@ async function startBot() {
             }
 
             if (!responseText) {
-                throw new Error("Ga3 les clés API fihom mochkil awla quota salat.");
+                throw new Error("Ga3 les clés API fihom mochkil.");
             }
 
             await sock.sendPresenceUpdate('paused', sender);
