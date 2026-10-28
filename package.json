@@ -1,0 +1,14 @@
+{
+  "name": "whatsapp-gemini-bot",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.9",
+    "@google/generative-ai": "^0.21.0",
+    "dotenv": "^16.4.5",
+    "pino": "^8.19.0"
+  }
+}
