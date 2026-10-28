@@ -11,7 +11,7 @@ const http = require('http');
 const fs = require('fs');
 require('dotenv').config();
 
-// Auto-Reset session ila bghiti t-reinitialisi bla shell
+// Auto-Reset session (Kheliha true f Render environment f l-mara l-wla bach t-msa7 l-bug, w mn b3d redha false)
 if (process.env.RESET_SESSION === 'true') {
     if (fs.existsSync('auth_info_baileys')) {
         fs.rmSync('auth_info_baileys', { recursive: true, force: true });
@@ -19,7 +19,6 @@ if (process.env.RESET_SESSION === 'true') {
     }
 }
 
-// 1. Server HTTP bash UptimeRobot yb9a dima feyyeq Render
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('WhatsApp Gemini 3.5 Bot is alive 24/7!\n');
@@ -27,7 +26,6 @@ const server = http.createServer((req, res) => {
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
 
-// 2. Gemini Multi-Keys Rotation
 const apiKeysEnv = process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || '';
 const API_KEYS = apiKeysEnv.split(',').map(key => key.trim()).filter(Boolean);
 let currentKeyIndex = 0;
@@ -60,43 +58,37 @@ async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
     const { version } = await fetchLatestBaileysVersion();
 
+    // Rje3na l-parametres li kano khedamin lik mzyan flwel 100%
     const sock = makeWASocket({
         version,
         auth: state,
         logger: pino({ level: 'fatal' }),
         printQRInTerminal: false,
-        browser: ["Ubuntu", "Chrome", "124.0.6367.207"],
-        connectTimeoutMs: 60000,
-        defaultQueryTimeoutMs: 60000,
-        keepAliveIntervalMs: 25000
+        browser: ["Ubuntu", "Chrome", "20.0.04"] 
     });
 
     sock.ev.on('creds.update', saveCreds);
 
+    // Rje3na l-code l-9dim dial generation d l-code
     if (!sock.authState.creds.registered && process.env.PHONE_NUMBER) {
         setTimeout(async () => {
             try {
-                const cleanPhone = process.env.PHONE_NUMBER.replace(/[^0-9]/g, '');
-                let code = await sock.requestPairingCode(cleanPhone);
+                let code = await sock.requestPairingCode(process.env.PHONE_NUMBER);
                 console.log(`\n========================================`);
-                console.log(`PAIRING CODE JDDD: ${code?.match(/.{1,4}/g)?.join('-')}`);
+                console.log(`PAIRING CODE: ${code?.match(/.{1,4}/g)?.join('-')}`);
                 console.log(`========================================\n`);
             } catch (err) {
-                console.error('Erreur Pairing Code:', err.message);
+                console.error('Pairing Code generation error:', err);
             }
-        }, 5000);
+        }, 3000);
     }
 
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect } = update;
         if (connection === 'close') {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
-            const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-            console.log(`Connection closed (status: ${statusCode}). Reconnecting: ${shouldReconnect}`);
-            if (shouldReconnect) {
-                setTimeout(() => startBot(), 4000);
-            } else {
-                console.log('Logged out! Khassk t-3awed pairing code mn jdid.');
+            if (statusCode !== DisconnectReason.loggedOut) {
+                setTimeout(() => startBot(), 3000);
             }
         } else if (connection === 'open') {
             console.log('WhatsApp Bot is ONLINE and ready with Gemini 3.5 & Imagen 3!');
@@ -123,7 +115,6 @@ async function startBot() {
                           rawMessage.documentMessage?.caption || 
                           rawMessage.videoMessage?.caption || '';
 
-        // Gestion dial les groupes
         if (isGroup) {
             const mentions = rawMessage.extendedTextMessage?.contextInfo?.mentionedJid || [];
             const isMentioned = botNumber && mentions.includes(botNumber);
@@ -133,7 +124,6 @@ async function startBot() {
             textContent = textContent.replace('!bot', '').replace(new RegExp(`@${botNumber.split('@')[0]}`, 'g'), '').trim();
         }
 
-        // Anti-spam
         if (isRateLimited(sender)) {
             await sock.sendMessage(sender, { text: '⚠️ Sifti bzaf d les messages. Sber d9i9a 3afak.' }, { quoted: m });
             return;
@@ -141,7 +131,6 @@ async function startBot() {
 
         const cleanText = textContent.trim().toLowerCase();
 
-        // Commande Clear
         if (cleanText === 'clear' || cleanText === 'كلير') {
             userChats.delete(sender);
             await sock.sendMessage(sender, { text: '✅ Safi, ms7t l-hadra li dazt kamla!' }, { quoted: m });
@@ -207,7 +196,7 @@ async function startBot() {
                 await sock.sendPresenceUpdate('paused', sender);
                 await sock.sendMessage(sender, { 
                     image: imageBuffer, 
-                    caption: `✨ *${userPrompt}*\n*(Google Imagen 3)*` 
+                    caption: `✨ *${userPrompt}*` 
                 }, { quoted: m });
                 return;
 
@@ -222,7 +211,7 @@ async function startBot() {
         }
 
         // ==========================================
-        // 2. Gemini 3.5 Flash Multimodal (Texte, Audio, Image, PDF)
+        // 2. Gemini 3.5 Flash Multimodal
         // ==========================================
         try {
             await sock.sendPresenceUpdate('composing', sender);
@@ -234,7 +223,6 @@ async function startBot() {
 
             let contents = [];
 
-            // A. Audio / Vocaux
             if (msgType === 'audioMessage') {
                 const buffer = await downloadMediaMessage(m, 'buffer', {});
                 contents.push({
@@ -244,9 +232,7 @@ async function startBot() {
                     }
                 });
                 contents.push("Sme3 mzian l had l-vocal (fih darija awla lougha khora) w jaweb 3la dakshi li t-gal fih b tari9a direct w mofida.");
-            }
-            // B. Images envoyées au bot (Vision)
-            else if (msgType === 'imageMessage') {
+            } else if (msgType === 'imageMessage') {
                 const buffer = await downloadMediaMessage(m, 'buffer', {});
                 contents.push({
                     inlineData: {
@@ -255,9 +241,7 @@ async function startBot() {
                     }
                 });
                 contents.push(textContent || "Chouf had t-tswira mzian w chre7 lia chno fiha awla jaweb 3la sou2al dyali.");
-            }
-            // C. Fichiers PDF
-            else if (msgType === 'documentMessage') {
+            } else if (msgType === 'documentMessage') {
                 const mime = rawMessage.documentMessage.mimetype || '';
                 if (mime.includes('pdf')) {
                     const buffer = await downloadMediaMessage(m, 'buffer', {});
@@ -273,9 +257,7 @@ async function startBot() {
                     await sock.sendMessage(sender, { text: '⚠️ Had l-weqt kan-9blou ghir les fichiers PDF.' }, { quoted: m });
                     return;
                 }
-            }
-            // D. Texte normal
-            else {
+            } else {
                 if (!textContent) {
                     await sock.sendPresenceUpdate('paused', sender);
                     return;
