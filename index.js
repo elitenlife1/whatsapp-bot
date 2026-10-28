@@ -10,7 +10,7 @@ const pino = require('pino');
 const http = require('http');
 require('dotenv').config();
 
-// 1. Server HTTP bash Render yb9a dima 7ay
+// 1. Server HTTP bash Render yb9a dima khdam m3a UptimeRobot
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('WhatsApp Gemini Bot is alive 24/7!\n');
@@ -45,31 +45,6 @@ function isRateLimited(sender) {
     limit.count++;
     rateLimits.set(sender, limit);
     return limit.count > 15;
-}
-
-// Function dial Image Generation b FLUX.1-schnell (Hugging Face)
-async function generateFluxImage(prompt) {
-    const hfToken = process.env.HF_TOKEN;
-    const endpoint = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell";
-
-    const headers = { "Content-Type": "application/json" };
-    if (hfToken) {
-        headers["Authorization"] = `Bearer ${hfToken}`;
-    }
-
-    const response = await fetch(endpoint, {
-        method: "POST",
-        headers: headers,
-        body: JSON.stringify({ inputs: prompt })
-    });
-
-    if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HF Error (${response.status}): ${errorText}`);
-    }
-
-    const arrayBuffer = await response.arrayBuffer();
-    return Buffer.from(arrayBuffer);
 }
 
 async function startBot() {
@@ -107,7 +82,7 @@ async function startBot() {
                 setTimeout(() => startBot(), 3000);
             }
         } else if (connection === 'open') {
-            console.log('WhatsApp Bot is ONLINE and ready with FLUX.1!');
+            console.log('WhatsApp Bot is ONLINE and ready with Google Imagen 3 & Multimodal!');
         }
     });
 
@@ -157,36 +132,75 @@ async function startBot() {
         }
 
         // ==========================================
-        // 1. Generation d t-Tsawer b FLUX.1 (/image)
+        // 1. Generation d t-Tsawer b Google Imagen 3
         // ==========================================
         if (textContent.startsWith('/image') || textContent.startsWith('!image') || textContent.startsWith('/صورة')) {
-            const imagePrompt = textContent.replace(/^(\/image|!image|\/صورة)/, '').trim();
+            const userPrompt = textContent.replace(/^(\/image|!image|\/صورة)/, '').trim();
 
-            if (!imagePrompt) {
+            if (!userPrompt) {
                 await sock.sendMessage(sender, { 
-                    text: '⚠️ Kteb l-wasf dial tswira, mital:\n`/image hyper-realistic luxury sports car in desert 8k`' 
+                    text: '⚠️ Kteb l-wasf dial tswira, mital:\n`/image tomobil sport wa3ra f lil f casablanca`' 
                 }, { quoted: m });
                 return;
             }
 
             try {
                 await sock.sendPresenceUpdate('composing', sender);
-                await sock.sendMessage(sender, { text: '🎨 Blati d9i9a, kan-generi lik tswira b model FLUX.1 HD...' }, { quoted: m });
+                await sock.sendMessage(sender, { text: '🎨 Blati d9i9a, kan-generi lik tswira b Google Imagen 3...' }, { quoted: m });
 
-                const imageBuffer = await generateFluxImage(imagePrompt);
+                // Traduction auto mn Darija l English
+                let englishPrompt = userPrompt;
+                try {
+                    const aiInstance = getNextGenAI();
+                    if (aiInstance) {
+                        const trModel = aiInstance.getGenerativeModel({ model: 'gemini-2.5-flash' });
+                        const trRes = await trModel.generateContent(
+                            `Translate and optimize this text into a detailed English prompt for an image generator: "${userPrompt}". Output ONLY the translated prompt.`
+                        );
+                        englishPrompt = trRes.response.text().trim() || userPrompt;
+                    }
+                } catch (e) {
+                    console.log('Traduction skipped:', e.message);
+                }
+
+                // Appel direct l Imagen 3 API b nafs l-key dial Gemini
+                const currentApiKey = API_KEYS[currentKeyIndex];
+                const imagenUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${currentApiKey}`;
+
+                const response = await fetch(imagenUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        instances: [{ prompt: englishPrompt }],
+                        parameters: {
+                            sampleCount: 1,
+                            aspectRatio: "1:1",
+                            outputMimeType: "image/jpeg"
+                        }
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.predictions || !data.predictions[0]?.bytesBase64Encoded) {
+                    throw new Error(data.error?.message || 'Failed to generate image via Imagen');
+                }
+
+                const imageBase64 = data.predictions[0].bytesBase64Encoded;
+                const imageBuffer = Buffer.from(imageBase64, 'base64');
 
                 await sock.sendPresenceUpdate('paused', sender);
                 await sock.sendMessage(sender, { 
                     image: imageBuffer, 
-                    caption: `✨ *${imagePrompt}*\n*(FLUX.1 HD)*` 
+                    caption: `✨ *${userPrompt}*\n*(Google Imagen 3)*` 
                 }, { quoted: m });
                 return;
 
             } catch (err) {
-                console.error('FLUX Generation Error:', err);
+                console.error('Imagen Error:', err);
                 await sock.sendPresenceUpdate('paused', sender);
                 await sock.sendMessage(sender, { 
-                    text: '⚠️ Tra mochkil f generation dial FLUX. Ila kant l-API fiha z7am, 3awd jereb mn hna d9i9a.' 
+                    text: '⚠️ Tra mochkil f generation dial t-tswira. 3awd jereb mn hna chwia.' 
                 }, { quoted: m });
                 return;
             }
@@ -261,7 +275,7 @@ async function startBot() {
                 try {
                     const aiInstance = getNextGenAI();
                     const model = aiInstance.getGenerativeModel({
-                        model: 'gemini-3.5-flash',
+                        model: 'gemini-2.5-flash',
                         systemInstruction: systemPrompt
                     });
 
