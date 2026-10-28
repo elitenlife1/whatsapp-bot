@@ -13,12 +13,12 @@ require('dotenv').config();
 // 1. خادم HTTP للحفاظ على الخدمة نشطة مع UptimeRobot
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('WhatsApp Gemini Bot is fully active!\n');
+    res.end('WhatsApp Gemini Bot is alive 24/7!\n');
 });
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
 
-// 2. مفاتيح Gemini مع التدوير (Rotation)
+// 2. تدوير المفاتيح (API Keys Rotation)
 const apiKeysEnv = process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || '';
 const API_KEYS = apiKeysEnv.split(',').map(key => key.trim()).filter(Boolean);
 let currentKeyIndex = 0;
@@ -82,7 +82,7 @@ async function startBot() {
                 setTimeout(() => startBot(), 3000);
             }
         } else if (connection === 'open') {
-            console.log('WhatsApp Bot is ONLINE and ready with Multimodal support!');
+            console.log('WhatsApp Bot is ONLINE and ready with Image Generation & Multimodal!');
         }
     });
 
@@ -100,7 +100,7 @@ async function startBot() {
                           m.message.imageMessage?.caption || 
                           m.message.documentMessage?.caption || '';
 
-        // إدارة المجموعات (الرد عند المنشن أو !bot فقط)
+        // إدارة المجموعات
         if (isGroup) {
             const mentions = m.message.extendedTextMessage?.contextInfo?.mentionedJid || [];
             const isMentioned = botNumber && mentions.includes(botNumber);
@@ -110,11 +110,13 @@ async function startBot() {
             textContent = textContent.replace('!bot', '').replace(new RegExp(`@${botNumber.split('@')[0]}`, 'g'), '').trim();
         }
 
+        // حماية السبام
         if (isRateLimited(sender)) {
             await sock.sendMessage(sender, { text: '⚠️ تجاوزت الحد المسموح. انتظر دقيقة واحدة من فضلك.' }, { quoted: m });
             return;
         }
 
+        // مسح الذاكرة
         const cleanText = textContent.trim().toLowerCase();
         if (cleanText === 'clear' || cleanText === 'كلير') {
             userChats.delete(sender);
@@ -122,17 +124,62 @@ async function startBot() {
             return;
         }
 
+        // ==========================================
+        // ميزة توليد الصور التلقائي (/image أو !image)
+        // ==========================================
+        if (textContent.startsWith('/image') || textContent.startsWith('!image') || textContent.startsWith('/صورة')) {
+            const imagePrompt = textContent.replace(/^(\/image|!image|\/صورة)/, '').trim();
+
+            if (!imagePrompt) {
+                await sock.sendMessage(sender, { 
+                    text: '⚠️ عافاك كتب الوصف ديال الصورة من بعد الأمر، مثلاً:\n`/image a futuristic car in neon city`' 
+                }, { quoted: m });
+                return;
+            }
+
+            try {
+                await sock.sendPresenceUpdate('composing', sender);
+                await sock.sendMessage(sender, { text: '⏳ بلاتي، راه كيتصايب التصميم ديالك دابا...' }, { quoted: m });
+
+                const encodedPrompt = encodeURIComponent(imagePrompt);
+                const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true`;
+
+                const res = await fetch(imageUrl);
+                if (!res.ok) throw new Error('فشل تحميل الصورة من المصدر');
+
+                const arrayBuffer = await res.arrayBuffer();
+                const buffer = Buffer.from(arrayBuffer);
+
+                await sock.sendPresenceUpdate('paused', sender);
+                await sock.sendMessage(sender, { 
+                    image: buffer, 
+                    caption: `🎨 ها هي الصورة ديالك:\n*${imagePrompt}*` 
+                }, { quoted: m });
+                return;
+            } catch (err) {
+                console.error('Image Generation Error:', err);
+                await sock.sendPresenceUpdate('paused', sender);
+                await sock.sendMessage(sender, { 
+                    text: '⚠️ وقع مشكل فتوليد الصورة، عاود جرب بوصف آخر أو بلغة إنجليزية.' 
+                }, { quoted: m });
+                return;
+            }
+        }
+
+        // ==========================================
+        // معالجة Gemini (نصوص، فويس، صور، PDF)
+        // ==========================================
         try {
             await sock.sendPresenceUpdate('composing', sender);
 
             const systemPrompt = `You are an intelligent, natural WhatsApp AI assistant.
 1. Formatting: NEVER use '#' or '###' headers. Use emojis and bold text (e.g. 📌 **العنوان**) for clear sections.
-2. Voice & Audio: Transcribe mentally, understand Moroccan Darija, Arabic, English, and French accurately, and reply with a direct, helpful solution.
+2. Voice & Audio: Transcribe mentally, understand Moroccan Darija, Arabic, English, and French accurately, and reply directly with helpful solutions.
 3. Matching: Always answer in the exact same language/dialect used by the user.`;
 
             let contents = [];
 
-            // 1. التعامل مع الفويس (Voice Notes)
+            // 1. معالجة الفويس (Voice Notes)
             if (msgType === 'audioMessage') {
                 const buffer = await downloadMediaMessage(m, 'buffer', {});
                 contents.push({
@@ -143,7 +190,7 @@ async function startBot() {
                 });
                 contents.push("استمع بدقة لهذا التسجيل الصوتي، وافهم ما قيل (سواء كان بالدارجة المغربية أو أي لغة أخرى) وأجب عليه مباشرة بحل أو توضيح مفيد.");
             }
-            // 2. التعامل مع الصور
+            // 2. تحليل الصور المرسلة للبوت
             else if (msgType === 'imageMessage') {
                 const buffer = await downloadMediaMessage(m, 'buffer', {});
                 contents.push({
@@ -154,7 +201,7 @@ async function startBot() {
                 });
                 contents.push(textContent || "حلل الصورة بدقة واشرح ما فيها أو أجب عن السؤال المتعلق بها.");
             }
-            // 3. التعامل مع ملفات الـ PDF
+            // 3. تحليل ملفات الـ PDF
             else if (msgType === 'documentMessage') {
                 const mime = m.message.documentMessage.mimetype || '';
                 if (mime.includes('pdf')) {
@@ -185,11 +232,10 @@ async function startBot() {
                 try {
                     const aiInstance = getNextGenAI();
                     const model = aiInstance.getGenerativeModel({
-                        model: 'gemini-3.5-flash',
+                        model: 'gemini-2.5-flash',
                         systemInstruction: systemPrompt
                     });
 
-                    // الرسائل النصية تحتفظ بالذاكرة
                     if (msgType !== 'imageMessage' && msgType !== 'audioMessage' && msgType !== 'documentMessage') {
                         if (!userChats.has(sender)) userChats.set(sender, []);
                         const history = userChats.get(sender);
@@ -204,7 +250,6 @@ async function startBot() {
                         );
                         if (history.length > 16) history.splice(0, history.length - 16);
                     } else {
-                        // الصور والأوديو والـ PDF
                         const result = await model.generateContent(contents);
                         responseText = result.response.text();
                     }
