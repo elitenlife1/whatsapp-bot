@@ -8,17 +8,9 @@ const {
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const pino = require('pino');
 const http = require('http');
-const fs = require('fs');
 require('dotenv').config();
 
-// Auto-Reset session (Kheliha true f Render environment f l-mara l-wla bach t-msa7 l-bug, w mn b3d redha false)
-if (process.env.RESET_SESSION === 'true') {
-    if (fs.existsSync('auth_info_baileys')) {
-        fs.rmSync('auth_info_baileys', { recursive: true, force: true });
-        console.log('⚠️ [SESSION] auth_info_baileys deleted successfully!');
-    }
-}
-
+// 1. Server HTTP bash Render yb9a dima 7ay
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('WhatsApp Gemini 3.5 Bot is alive 24/7!\n');
@@ -26,6 +18,7 @@ const server = http.createServer((req, res) => {
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
 
+// 2. Multi-Keys Rotation
 const apiKeysEnv = process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || '';
 const API_KEYS = apiKeysEnv.split(',').map(key => key.trim()).filter(Boolean);
 let currentKeyIndex = 0;
@@ -55,32 +48,33 @@ function isRateLimited(sender) {
 }
 
 async function startBot() {
-    const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
+    // Beddelna smia dial l-dossier l session_v2 bash n-bdaw mn zero
+    const { state, saveCreds } = await useMultiFileAuthState('session_v2');
     const { version } = await fetchLatestBaileysVersion();
 
-    // Rje3na l-parametres li kano khedamin lik mzyan flwel 100%
     const sock = makeWASocket({
         version,
         auth: state,
         logger: pino({ level: 'fatal' }),
         printQRInTerminal: false,
-        browser: ["Ubuntu", "Chrome", "20.0.04"] 
+        browser: ["Ubuntu", "Chrome", "20.0.04"]
     });
 
     sock.ev.on('creds.update', saveCreds);
 
-    // Rje3na l-code l-9dim dial generation d l-code
     if (!sock.authState.creds.registered && process.env.PHONE_NUMBER) {
         setTimeout(async () => {
             try {
-                let code = await sock.requestPairingCode(process.env.PHONE_NUMBER);
+                // T2aked anaho raqm n9i
+                const cleanPhone = process.env.PHONE_NUMBER.replace(/[^0-9]/g, '');
+                let code = await sock.requestPairingCode(cleanPhone);
                 console.log(`\n========================================`);
-                console.log(`PAIRING CODE: ${code?.match(/.{1,4}/g)?.join('-')}`);
+                console.log(`PAIRING CODE JDDD: ${code?.match(/.{1,4}/g)?.join('-')}`);
                 console.log(`========================================\n`);
             } catch (err) {
-                console.error('Pairing Code generation error:', err);
+                console.error('Pairing Code error:', err.message);
             }
-        }, 3000);
+        }, 6000); // 6 thwani bash l-socket y-koun wajed
     }
 
     sock.ev.on('connection.update', (update) => {
@@ -88,7 +82,9 @@ async function startBot() {
         if (connection === 'close') {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
             if (statusCode !== DisconnectReason.loggedOut) {
-                setTimeout(() => startBot(), 3000);
+                setTimeout(() => startBot(), 4000);
+            } else {
+                console.log('Logged out.');
             }
         } else if (connection === 'open') {
             console.log('WhatsApp Bot is ONLINE and ready with Gemini 3.5 & Imagen 3!');
@@ -158,7 +154,7 @@ async function startBot() {
                 try {
                     const aiInstance = getNextGenAI();
                     if (aiInstance) {
-                        const trModel = aiInstance.getGenerativeModel({ model: 'gemini-3.5-flash' });
+                        const trModel = aiInstance.getGenerativeModel({ model: 'gemini-2.5-flash' });
                         const trRes = await trModel.generateContent(
                             `Translate and optimize this text into a detailed English prompt for an image generator: "${userPrompt}". Output ONLY the translated prompt.`
                         );
@@ -211,7 +207,7 @@ async function startBot() {
         }
 
         // ==========================================
-        // 2. Gemini 3.5 Flash Multimodal
+        // 2. Gemini Multimodal (Texte, Audio, Vision, PDF)
         // ==========================================
         try {
             await sock.sendPresenceUpdate('composing', sender);
@@ -272,7 +268,7 @@ async function startBot() {
                 try {
                     const aiInstance = getNextGenAI();
                     const model = aiInstance.getGenerativeModel({
-                        model: 'gemini-3.5-flash',
+                        model: 'gemini-2.5-flash',
                         systemInstruction: systemPrompt
                     });
 
