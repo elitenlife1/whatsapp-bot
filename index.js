@@ -69,7 +69,7 @@ async function startBot() {
 
         try {
             console.log(`Received message: ${messageBody}`);
-            const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+            const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash' });
             const result = await model.generateContent(messageBody);
             const response = await result.response;
             const replyText = response.text();
