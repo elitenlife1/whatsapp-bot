@@ -153,7 +153,7 @@ async function startBot() {
                 try {
                     const aiInstance = getNextGenAI();
                     if (aiInstance) {
-                        const trModel = aiInstance.getGenerativeModel({ model: 'gemini-2.5-flash' });
+                        const trModel = aiInstance.getGenerativeModel({ model: 'gemini-3.5-flash' });
                         const trRes = await trModel.generateContent(
                             `Translate and optimize this text into a detailed English prompt for an image generator: "${userPrompt}". Output ONLY the translated prompt.`
                         );
@@ -275,7 +275,7 @@ async function startBot() {
                 try {
                     const aiInstance = getNextGenAI();
                     const model = aiInstance.getGenerativeModel({
-                        model: 'gemini-2.5-flash',
+                        model: 'gemini-3.5-flash',
                         systemInstruction: systemPrompt
                     });
 
