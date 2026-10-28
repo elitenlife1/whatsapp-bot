@@ -10,7 +10,7 @@ const pino = require('pino');
 const http = require('http');
 require('dotenv').config();
 
-// 1. خادم HTTP للحفاظ على الخدمة نشطة مع UptimeRobot
+// 1. Server HTTP bash Render yb9a dima 7ay m3a UptimeRobot
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('WhatsApp Gemini Bot is alive 24/7!\n');
@@ -18,7 +18,7 @@ const server = http.createServer((req, res) => {
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
 
-// 2. تدوير المفاتيح (API Keys Rotation)
+// 2. Multi-API Keys Rotation
 const apiKeysEnv = process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || '';
 const API_KEYS = apiKeysEnv.split(',').map(key => key.trim()).filter(Boolean);
 let currentKeyIndex = 0;
@@ -44,7 +44,7 @@ function isRateLimited(sender) {
 
     limit.count++;
     rateLimits.set(sender, limit);
-    return limit.count > 15; // 15 رسالة في الدقيقة
+    return limit.count > 15;
 }
 
 async function startBot() {
@@ -82,27 +82,34 @@ async function startBot() {
                 setTimeout(() => startBot(), 3000);
             }
         } else if (connection === 'open') {
-            console.log('WhatsApp Bot is ONLINE and ready with Image Generation & Multimodal!');
+            console.log('WhatsApp Bot is ONLINE and ready with HD Flux & Multimodal!');
         }
     });
 
     sock.ev.on('messages.upsert', async ({ messages }) => {
         const m = messages[0];
-        if (!m.message || m.key.fromMe) return;
+        if (!m || !m.message || m.key.fromMe) return;
 
         const sender = m.key.remoteJid;
         const isGroup = sender.endsWith('@g.us');
         const botNumber = sock.user?.id ? (sock.user.id.split(':')[0] + '@s.whatsapp.net') : '';
 
-        const msgType = Object.keys(m.message)[0];
-        let textContent = m.message.conversation || 
-                          m.message.extendedTextMessage?.text || 
-                          m.message.imageMessage?.caption || 
-                          m.message.documentMessage?.caption || '';
+        // Istikhraj l-message l-7a9i9i 7etta ila kan ephemeral awla viewOnce
+        const rawMessage = m.message.ephemeralMessage?.message || 
+                           m.message.viewOnceMessage?.message || 
+                           m.message;
 
-        // إدارة المجموعات
+        const msgType = Object.keys(rawMessage)[0];
+
+        let textContent = rawMessage.conversation || 
+                          rawMessage.extendedTextMessage?.text || 
+                          rawMessage.imageMessage?.caption || 
+                          rawMessage.documentMessage?.caption || 
+                          rawMessage.videoMessage?.caption || '';
+
+        // Gestion dial les groupes
         if (isGroup) {
-            const mentions = m.message.extendedTextMessage?.contextInfo?.mentionedJid || [];
+            const mentions = rawMessage.extendedTextMessage?.contextInfo?.mentionedJid || [];
             const isMentioned = botNumber && mentions.includes(botNumber);
             const hasPrefix = textContent.toLowerCase().startsWith('!bot');
 
@@ -110,42 +117,45 @@ async function startBot() {
             textContent = textContent.replace('!bot', '').replace(new RegExp(`@${botNumber.split('@')[0]}`, 'g'), '').trim();
         }
 
-        // حماية السبام
+        // Anti-spam
         if (isRateLimited(sender)) {
-            await sock.sendMessage(sender, { text: '⚠️ تجاوزت الحد المسموح. انتظر دقيقة واحدة من فضلك.' }, { quoted: m });
+            await sock.sendMessage(sender, { text: '⚠️ Sifti bzaf d les messages f d9i9a. Sber d9i9a 3afak.' }, { quoted: m });
             return;
         }
 
-        // مسح الذاكرة
+        // Commande dial Clear
         const cleanText = textContent.trim().toLowerCase();
         if (cleanText === 'clear' || cleanText === 'كلير') {
             userChats.delete(sender);
-            await sock.sendMessage(sender, { text: '✅ تم مسح الذاكرة وسياق المحادثة بنجاح!' }, { quoted: m });
+            await sock.sendMessage(sender, { text: '✅ Safi, ms7t l-hadra li dazt kamla!' }, { quoted: m });
             return;
         }
 
         // ==========================================
-        // ميزة توليد الصور التلقائي (/image أو !image)
+        // 1. Generation d t-Tsawer HD (FLUX - Sans Filigrane)
         // ==========================================
         if (textContent.startsWith('/image') || textContent.startsWith('!image') || textContent.startsWith('/صورة')) {
             const imagePrompt = textContent.replace(/^(\/image|!image|\/صورة)/, '').trim();
 
             if (!imagePrompt) {
                 await sock.sendMessage(sender, { 
-                    text: '⚠️ عافاك كتب الوصف ديال الصورة من بعد الأمر، مثلاً:\n`/image a futuristic car in neon city`' 
+                    text: '⚠️ Kteb l-wasf dial tswira, mital:\n`/image ultra realistic luxury car in casablanca night 8k`' 
                 }, { quoted: m });
                 return;
             }
 
             try {
                 await sock.sendPresenceUpdate('composing', sender);
-                await sock.sendMessage(sender, { text: '⏳ بلاتي، راه كيتصايب التصميم ديالك دابا...' }, { quoted: m });
+                await sock.sendMessage(sender, { text: '🎨 Blati d9i9a, kan-generi lik tswira b qualité HD (Flux)...' }, { quoted: m });
 
+                const seed = Math.floor(Math.random() * 1000000);
                 const encodedPrompt = encodeURIComponent(imagePrompt);
-                const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true`;
+                
+                // Mkhdmin model=flux m3a no-logo bash tji qualité wa3ra w n9iya bla 3alama ma2iya
+                const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?model=flux&width=1024&height=1024&seed=${seed}&nologo=true&enhance=true`;
 
                 const res = await fetch(imageUrl);
-                if (!res.ok) throw new Error('فشل تحميل الصورة من المصدر');
+                if (!res.ok) throw new Error('Mochkil f telechargement d l-tswira');
 
                 const arrayBuffer = await res.arrayBuffer();
                 const buffer = Buffer.from(arrayBuffer);
@@ -153,33 +163,31 @@ async function startBot() {
                 await sock.sendPresenceUpdate('paused', sender);
                 await sock.sendMessage(sender, { 
                     image: buffer, 
-                    caption: `🎨 ها هي الصورة ديالك:\n*${imagePrompt}*` 
+                    caption: `✨ *${imagePrompt}*` 
                 }, { quoted: m });
                 return;
             } catch (err) {
-                console.error('Image Generation Error:', err);
+                console.error('Image Error:', err);
                 await sock.sendPresenceUpdate('paused', sender);
-                await sock.sendMessage(sender, { 
-                    text: '⚠️ وقع مشكل فتوليد الصورة، عاود جرب بوصف آخر أو بلغة إنجليزية.' 
-                }, { quoted: m });
+                await sock.sendMessage(sender, { text: '⚠️ Tra mochkil f generation dial t-tswira. 3awd jereb.' }, { quoted: m });
                 return;
             }
         }
 
         // ==========================================
-        // معالجة Gemini (نصوص، فويس، صور، PDF)
+        // 2. Gemini Multimodal (Texte, Audio, Image, PDF)
         // ==========================================
         try {
             await sock.sendPresenceUpdate('composing', sender);
 
-            const systemPrompt = `You are an intelligent, natural WhatsApp AI assistant.
-1. Formatting: NEVER use '#' or '###' headers. Use emojis and bold text (e.g. 📌 **العنوان**) for clear sections.
-2. Voice & Audio: Transcribe mentally, understand Moroccan Darija, Arabic, English, and French accurately, and reply directly with helpful solutions.
-3. Matching: Always answer in the exact same language/dialect used by the user.`;
+            const systemPrompt = `You are a helpful, intelligent WhatsApp AI assistant.
+1. Formatting: NEVER use '#' or '###' headers. Use emojis and bold text (e.g. 📌 **العنوان**) for sections.
+2. Voice & Audio: Mentally transcribe and understand Moroccan Darija, Arabic, French, and English fluently. Answer directly and naturally.
+3. Language: Dynamically match the user's language (especially Moroccan Darija).`;
 
             let contents = [];
 
-            // 1. معالجة الفويس (Voice Notes)
+            // A. Audio / Vocaux
             if (msgType === 'audioMessage') {
                 const buffer = await downloadMediaMessage(m, 'buffer', {});
                 contents.push({
@@ -188,22 +196,22 @@ async function startBot() {
                         mimeType: 'audio/ogg; codecs=opus'
                     }
                 });
-                contents.push("استمع بدقة لهذا التسجيل الصوتي، وافهم ما قيل (سواء كان بالدارجة المغربية أو أي لغة أخرى) وأجب عليه مباشرة بحل أو توضيح مفيد.");
+                contents.push("Sme3 mzian l had l-vocal (fih darija awla lougha khora) w jaweb 3la dakshi li t-gal fih b tari9a direct w mofida.");
             }
-            // 2. تحليل الصور المرسلة للبوت
+            // B. Images envoyées au bot (Vision)
             else if (msgType === 'imageMessage') {
                 const buffer = await downloadMediaMessage(m, 'buffer', {});
                 contents.push({
                     inlineData: {
                         data: buffer.toString('base64'),
-                        mimeType: m.message.imageMessage.mimetype || 'image/jpeg'
+                        mimeType: rawMessage.imageMessage.mimetype || 'image/jpeg'
                     }
                 });
-                contents.push(textContent || "حلل الصورة بدقة واشرح ما فيها أو أجب عن السؤال المتعلق بها.");
+                contents.push(textContent || "Chouf had t-tswira mzian w chre7 lia chno fiha awla jaweb 3la sou2al dyali.");
             }
-            // 3. تحليل ملفات الـ PDF
+            // C. Fichiers PDF
             else if (msgType === 'documentMessage') {
-                const mime = m.message.documentMessage.mimetype || '';
+                const mime = rawMessage.documentMessage.mimetype || '';
                 if (mime.includes('pdf')) {
                     const buffer = await downloadMediaMessage(m, 'buffer', {});
                     contents.push({
@@ -212,16 +220,19 @@ async function startBot() {
                             mimeType: 'application/pdf'
                         }
                     });
-                    contents.push(textContent || "لخص هذا الملف وأبرز أهم ما ورد فيه من نقاط.");
+                    contents.push(textContent || "Lakhkhess lia had l-fichier PDF w 3tini l-moufid fih.");
                 } else {
                     await sock.sendPresenceUpdate('paused', sender);
-                    await sock.sendMessage(sender, { text: '⚠️ حالياً ندعم مستندات الـ PDF فقط.' }, { quoted: m });
+                    await sock.sendMessage(sender, { text: '⚠️ Had l-weqt kan-9blou ghir les fichiers PDF.' }, { quoted: m });
                     return;
                 }
             }
-            // 4. نصوص عادية
+            // D. Texte normal
             else {
-                if (!textContent) return;
+                if (!textContent) {
+                    await sock.sendPresenceUpdate('paused', sender);
+                    return;
+                }
                 contents.push(textContent);
             }
 
@@ -232,10 +243,11 @@ async function startBot() {
                 try {
                     const aiInstance = getNextGenAI();
                     const model = aiInstance.getGenerativeModel({
-                        model: 'gemini-2.5-flash',
+                        model: 'gemini-3.5-flash',
                         systemInstruction: systemPrompt
                     });
 
+                    // L-chat textuel kay-sta3mel history bach y-39el 3la l-hadra
                     if (msgType !== 'imageMessage' && msgType !== 'audioMessage' && msgType !== 'documentMessage') {
                         if (!userChats.has(sender)) userChats.set(sender, []);
                         const history = userChats.get(sender);
@@ -250,17 +262,18 @@ async function startBot() {
                         );
                         if (history.length > 16) history.splice(0, history.length - 16);
                     } else {
+                        // Multimodal direct (audio, vision, pdf)
                         const result = await model.generateContent(contents);
                         responseText = result.response.text();
                     }
                 } catch (err) {
                     attempts++;
-                    console.error(`Attempt with API key ${currentKeyIndex} failed:`, err.message);
+                    console.error(`Attempt with key ${currentKeyIndex} failed:`, err.message);
                 }
             }
 
             if (!responseText) {
-                throw new Error("تعذر الحصول على رد من جميع المفاتيح المتاحة.");
+                throw new Error("Ga3 les clés API fihom mochkil awla quota salat.");
             }
 
             await sock.sendPresenceUpdate('paused', sender);
@@ -270,7 +283,7 @@ async function startBot() {
             console.error('Processing Error:', error);
             await sock.sendPresenceUpdate('paused', sender);
             await sock.sendMessage(sender, { 
-                text: '⚠️ وقع مشكل بسيط فمعالجة الرسالة، عاود صيفطها وغادي نجاوبك دابا.' 
+                text: '⚠️ Tra mochkil sghir f l-khedma dial l-message, 3awd sifto daba.' 
             }, { quoted: m });
         }
     });
