@@ -14,7 +14,7 @@ require('dotenv').config();
 let latestQR = null;
 let isConnected = false;
 
-// 1. Serveur HTTP avec route /qr
+// 1. Server HTTP m3a route /qr bash t-scanni direct mn browser
 const server = http.createServer(async (req, res) => {
     if (req.url === '/qr') {
         if (isConnected) {
@@ -23,7 +23,7 @@ const server = http.createServer(async (req, res) => {
         }
         if (!latestQR) {
             res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-            return res.end('<h2>⏳ Mazal kay-tchargé l-QR code... 3awed dir Refresh (F5) mn hna 5 thwani.</h2>');
+            return res.end('<h2>⏳ Mazal kay-tchargé l-QR code... Dir Refresh (F5) mn hna 5 thwani.</h2>');
         }
         try {
             const qrImage = await QRCode.toDataURL(latestQR);
@@ -53,11 +53,11 @@ const server = http.createServer(async (req, res) => {
     }
 
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('WhatsApp Gemini Agent is running 24/7!\n');
+    res.end('WhatsApp Gemini 3.1 Flash Lite Bot is running 24/7!\n');
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Serveur actif sur le port ${PORT}`));
+server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
 
 // 2. Multi-Keys Rotation
 const apiKeysEnv = process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || '';
@@ -121,7 +121,7 @@ async function startBot() {
         } else if (connection === 'open') {
             isConnected = true;
             latestQR = null;
-            console.log('✅ Bot WhatsApp connected & ready with Live Web Search & Gemini!');
+            console.log('✅ WhatsApp Bot is ONLINE and ready with Gemini 3.1 Flash Lite!');
         }
     });
 
@@ -188,9 +188,9 @@ async function startBot() {
                 try {
                     const aiInstance = getNextGenAI();
                     if (aiInstance) {
-                        const trModel = aiInstance.getGenerativeModel({ model: 'gemini-3.5-flash-lite' });
+                        const trModel = aiInstance.getGenerativeModel({ model: 'gemini-3.1-flash-lite' });
                         const trRes = await trModel.generateContent(
-                            `Translate and optimize this prompt into an ultra-detailed, photorealistic English prompt: "${userPrompt}". Return ONLY the prompt.`
+                            `Translate and optimize this prompt into an ultra-detailed, photorealistic English prompt for image generation: "${userPrompt}". Return ONLY the prompt.`
                         );
                         optimizedPrompt = trRes.response.text().trim() || userPrompt;
                     }
@@ -226,7 +226,7 @@ async function startBot() {
         }
 
         // ==========================================
-        // 2. Gemini Multimodal + Live Web Search (Antigravity Agent)
+        // 2. Gemini 3.1 Flash Lite Multimodal + Live Search
         // ==========================================
         try {
             await sock.sendPresenceUpdate('composing', sender);
@@ -255,7 +255,7 @@ async function startBot() {
                         mimeType: 'audio/ogg; codecs=opus'
                     }
                 });
-                contents.push("Sme3 mzian l had l-vocal w jaweb 3la dakshi li fih b tari9a direct.");
+                contents.push("Sme3 mzian l had l-vocal w jaweb 3la dakshi li fih b tari9a direct w mofida.");
             } else if (msgType === 'imageMessage') {
                 const buffer = await downloadMediaMessage(m, 'buffer', {});
                 contents.push({
@@ -291,7 +291,10 @@ async function startBot() {
 
             let responseText = null;
             let attempts = 0;
-            const modelsToTry = ['gemini-3.5-flash-lite', 'gemini-2.0-flash'];
+            const modelsToTry = [
+                'gemini-3.1-flash-lite',
+                'gemini-3.8-flash'
+            ];
 
             while (!responseText && attempts < API_KEYS.length) {
                 const aiInstance = getNextGenAI();
@@ -299,7 +302,6 @@ async function startBot() {
 
                 for (const currentModelName of modelsToTry) {
                     try {
-                        // Kheddemna Google Search Tool (Antigravity Grounding)
                         const model = aiInstance.getGenerativeModel({
                             model: currentModelName,
                             systemInstruction: systemPrompt,
