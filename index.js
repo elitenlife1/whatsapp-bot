@@ -1,8 +1,21 @@
 const { makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const pino = require('pino');
+const qrcode = require('qrcode-terminal'); // تأكد باللي هادي كاينا ولا غنستعملو qrcode
+const http = require('http');
 require('dotenv').config();
 
+// 1. فتح سيرفر HTTP بسيط جداً غير باش Render يبقى شاعل ومايعطيش "No open ports detected"
+const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('WhatsApp Gemini Bot is running 24/7!\n');
+});
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`HTTP server is listening on port ${PORT}`);
+});
+
+// 2. إعداد Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 async function startBot() {
@@ -11,14 +24,20 @@ async function startBot() {
     const sock = makeWASocket({
         auth: state,
         logger: pino({ level: 'fatal' }),
-        printQRInTerminal: true
+        // حيدنا printQRInTerminal باش نخدمو بالطريقة اليدوية المضمونة لتحت
     });
 
     sock.ev.on('creds.update', saveCreds);
 
+    // الطريقة الحديثة والمضمونة لإظهار QR Code في الـ Logs
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update;
         
+        if (qr) {
+            console.log('=== SCAN THIS QR CODE ===');
+            qrcode.generate(qr, { small: true });
+        }
+
         if (connection === 'close') {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
             console.log('Connection closed, reconnecting...');
@@ -49,7 +68,7 @@ async function startBot() {
             await sock.sendMessage(sender, { text: replyText }, { quoted: m });
         } catch (error) {
             console.error('Error generating AI response:', error);
-            await sock.sendMessage(sender, { text: '3doran, wa9a3 khata2 ta9ni.' }, { quoted: m });
+            await sock.sendMessage(sender, { text: 'عذراً، وقع خطأ تقني، عاود محاولة لاحقاً.' }, { quoted: m });
         }
     });
 }
