@@ -8,13 +8,54 @@ const {
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const pino = require('pino');
 const http = require('http');
+const QRCode = require('qrcode');
 require('dotenv').config();
 
-// 1. Server HTTP bash Render yb9a dima 7ay
-const server = http.createServer((req, res) => {
+let latestQR = null;
+let isConnected = false;
+
+// 1. Server HTTP: fih route /qr bash tchouf l-QR code n9i f navigateur
+const server = http.createServer(async (req, res) => {
+    if (req.url === '/qr') {
+        if (isConnected) {
+            res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+            return res.end('<h2>✅ WhatsApp rah mconnecti deja!</h2>');
+        }
+        if (!latestQR) {
+            res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+            return res.end('<h2>⏳ Mazal kay-tchargé l-QR code... 3awed dir Refresh (F5) mn hna 5 thwani.</h2>');
+        }
+        try {
+            const qrImage = await QRCode.toDataURL(latestQR);
+            res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+            return res.end(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>WhatsApp Bot QR Login</title>
+                    <meta name="viewport" content="width=device-width, initial-scale=1">
+                    <style>
+                        body { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; background: #111b21; color: white; margin: 0; }
+                        img { border: 8px solid white; border-radius: 12px; margin-top: 15px; }
+                    </style>
+                </head>
+                <body>
+                    <h2>Scanni had l-QR code b WhatsApp:</h2>
+                    <img src="${qrImage}" width="280" height="280" alt="QR Code" />
+                    <p style="color: #8696a0; margin-top: 12px;">Ila fatet dqiqa w ma scannitish, dir Refresh (F5).</p>
+                </body>
+                </html>
+            `);
+        } catch (e) {
+            res.writeHead(500, { 'Content-Type': 'text/plain' });
+            return res.end('Mochkil f generation d QR');
+        }
+    }
+
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('WhatsApp Gemini 3.5 Bot is alive 24/7!\n');
 });
+
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
 
@@ -48,7 +89,6 @@ function isRateLimited(sender) {
 }
 
 async function startBot() {
-    // Beddelna smia dial l-dossier l session_v2 bash n-bdaw mn zero
     const { state, saveCreds } = await useMultiFileAuthState('session_v2');
     const { version } = await fetchLatestBaileysVersion();
 
@@ -62,24 +102,16 @@ async function startBot() {
 
     sock.ev.on('creds.update', saveCreds);
 
-    if (!sock.authState.creds.registered && process.env.PHONE_NUMBER) {
-        setTimeout(async () => {
-            try {
-                // T2aked anaho raqm n9i
-                const cleanPhone = process.env.PHONE_NUMBER.replace(/[^0-9]/g, '');
-                let code = await sock.requestPairingCode(cleanPhone);
-                console.log(`\n========================================`);
-                console.log(`PAIRING CODE JDDD: ${code?.match(/.{1,4}/g)?.join('-')}`);
-                console.log(`========================================\n`);
-            } catch (err) {
-                console.error('Pairing Code error:', err.message);
-            }
-        }, 6000); // 6 thwani bash l-socket y-koun wajed
-    }
-
     sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect } = update;
+        const { connection, lastDisconnect, qr } = update;
+
+        if (qr) {
+            latestQR = qr;
+            console.log('🔗 QR CODE WAJED! Dkhol l: https://whatsapp-gemini-wy4j.onrender.com/qr');
+        }
+
         if (connection === 'close') {
+            isConnected = false;
             const statusCode = lastDisconnect?.error?.output?.statusCode;
             if (statusCode !== DisconnectReason.loggedOut) {
                 setTimeout(() => startBot(), 4000);
@@ -87,6 +119,8 @@ async function startBot() {
                 console.log('Logged out.');
             }
         } else if (connection === 'open') {
+            isConnected = true;
+            latestQR = null;
             console.log('WhatsApp Bot is ONLINE and ready with Gemini 3.5 & Imagen 3!');
         }
     });
@@ -133,9 +167,7 @@ async function startBot() {
             return;
         }
 
-        // ==========================================
         // 1. Generation d t-Tsawer b Google Imagen 3
-        // ==========================================
         if (textContent.startsWith('/image') || textContent.startsWith('!image') || textContent.startsWith('/صورة')) {
             const userPrompt = textContent.replace(/^(\/image|!image|\/صورة)/, '').trim();
 
@@ -206,9 +238,7 @@ async function startBot() {
             }
         }
 
-        // ==========================================
-        // 2. Gemini Multimodal (Texte, Audio, Vision, PDF)
-        // ==========================================
+        // 2. Gemini Multimodal
         try {
             await sock.sendPresenceUpdate('composing', sender);
 
