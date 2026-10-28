@@ -1,11 +1,10 @@
 const { makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const pino = require('pino');
-const qrcode = require('qrcode-terminal'); // تأكد باللي هادي كاينا ولا غنستعملو qrcode
 const http = require('http');
 require('dotenv').config();
 
-// 1. فتح سيرفر HTTP بسيط جداً غير باش Render يبقى شاعل ومايعطيش "No open ports detected"
+// 1. HTTP server dyal Render باش مايضربش Crash
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('WhatsApp Gemini Bot is running 24/7!\n');
@@ -15,7 +14,6 @@ server.listen(PORT, () => {
     console.log(`HTTP server is listening on port ${PORT}`);
 });
 
-// 2. إعداد Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 async function startBot() {
@@ -24,20 +22,31 @@ async function startBot() {
     const sock = makeWASocket({
         auth: state,
         logger: pino({ level: 'fatal' }),
-        // حيدنا printQRInTerminal باش نخدمو بالطريقة اليدوية المضمونة لتحت
+        printQRInTerminal: false // 7ydna QR Code l9dim
     });
 
     sock.ev.on('creds.update', saveCreds);
 
-    // الطريقة الحديثة والمضمونة لإظهار QR Code في الـ Logs
-    sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect, qr } = update;
-        
-        if (qr) {
-            console.log('=== SCAN THIS QR CODE ===');
-            qrcode.generate(qr, { small: true });
+    // Bghiina nst3mlo nemra dyal tlifon bsh ntsblo b code (Bla QR Code)
+    if (!sock.authState.creds.registered) {
+        // Ktél nemra dyal tlifon dyalk hna b l-code d dawla (Mitalan: 2126xxxxxxxx)
+        const phoneNumber = process.env.PHONE_NUMBER; 
+        if (phoneNumber) {
+            setTimeout(async () => {
+                try {
+                    let code = await sock.requestPairingCode(phoneNumber);
+                    console.log(`========================================`);
+                    console.log(`YOUR PAIRING CODE IS: ${code?.match(/.{1,4}/g)?.join('-')}`);
+                    console.log(`========================================`);
+                } catch (err) {
+                    console.error('Error requesting pairing code:', err);
+                }
+            }, 3000);
         }
+    }
 
+    sock.ev.on('connection.update', (update) => {
+        const { connection, lastDisconnect } = update;
         if (connection === 'close') {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
             console.log('Connection closed, reconnecting...');
@@ -68,7 +77,7 @@ async function startBot() {
             await sock.sendMessage(sender, { text: replyText }, { quoted: m });
         } catch (error) {
             console.error('Error generating AI response:', error);
-            await sock.sendMessage(sender, { text: 'عذراً، وقع خطأ تقني، عاود محاولة لاحقاً.' }, { quoted: m });
+            await sock.sendMessage(sender, { text: '3doran, wa9a3 khata2 ta9ni.' }, { quoted: m });
         }
     });
 }
