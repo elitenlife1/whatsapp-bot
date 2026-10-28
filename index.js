@@ -14,7 +14,7 @@ require('dotenv').config();
 let latestQR = null;
 let isConnected = false;
 
-// 1. Server HTTP: fih route /qr bash tchouf l-QR code n9i f navigateur
+// 1. Serveur HTTP avec route /qr
 const server = http.createServer(async (req, res) => {
     if (req.url === '/qr') {
         if (isConnected) {
@@ -53,11 +53,11 @@ const server = http.createServer(async (req, res) => {
     }
 
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('WhatsApp Gemini 3.5 Bot is alive 24/7!\n');
+    res.end('WhatsApp Gemini Agent is running 24/7!\n');
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+server.listen(PORT, () => console.log(`Serveur actif sur le port ${PORT}`));
 
 // 2. Multi-Keys Rotation
 const apiKeysEnv = process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || '';
@@ -107,7 +107,7 @@ async function startBot() {
 
         if (qr) {
             latestQR = qr;
-            console.log('🔗 QR CODE WAJED! Dkhol l: https://whatsapp-gemini-wy4j.onrender.com/qr');
+            console.log('🔗 QR CODE WAJED! Dkhol l: /qr');
         }
 
         if (connection === 'close') {
@@ -116,12 +116,12 @@ async function startBot() {
             if (statusCode !== DisconnectReason.loggedOut) {
                 setTimeout(() => startBot(), 4000);
             } else {
-                console.log('Logged out.');
+                console.log('Session déconnectée.');
             }
         } else if (connection === 'open') {
             isConnected = true;
             latestQR = null;
-            console.log('WhatsApp Bot is ONLINE and ready with Gemini 3.5 & Imagen 3!');
+            console.log('✅ Bot WhatsApp connected & ready with Live Web Search & Gemini!');
         }
     });
 
@@ -167,7 +167,9 @@ async function startBot() {
             return;
         }
 
-        // 1. Generation d t-Tsawer b Google Imagen 3
+        // ==========================================
+        // 1. Generation d t-Tsawer (/image)
+        // ==========================================
         if (textContent.startsWith('/image') || textContent.startsWith('!image') || textContent.startsWith('/صورة')) {
             const userPrompt = textContent.replace(/^(\/image|!image|\/صورة)/, '').trim();
 
@@ -180,46 +182,31 @@ async function startBot() {
 
             try {
                 await sock.sendPresenceUpdate('composing', sender);
-                await sock.sendMessage(sender, { text: '🎨 Blati d9i9a, kan-generi lik tswira b Google Imagen 3...' }, { quoted: m });
+                await sock.sendMessage(sender, { text: '🎨 Blati d9i9a, kan-generi lik tswira HD...' }, { quoted: m });
 
-                let englishPrompt = userPrompt;
+                let optimizedPrompt = userPrompt;
                 try {
                     const aiInstance = getNextGenAI();
                     if (aiInstance) {
-                        const trModel = aiInstance.getGenerativeModel({ model: 'gemini-3.5-flash' });
+                        const trModel = aiInstance.getGenerativeModel({ model: 'gemini-3.5-flash-lite' });
                         const trRes = await trModel.generateContent(
-                            `Translate and optimize this text into a detailed English prompt for an image generator: "${userPrompt}". Output ONLY the translated prompt.`
+                            `Translate and optimize this prompt into an ultra-detailed, photorealistic English prompt: "${userPrompt}". Return ONLY the prompt.`
                         );
-                        englishPrompt = trRes.response.text().trim() || userPrompt;
+                        optimizedPrompt = trRes.response.text().trim() || userPrompt;
                     }
                 } catch (e) {
                     console.log('Traduction skipped:', e.message);
                 }
 
-                const currentApiKey = API_KEYS[currentKeyIndex];
-                const imagenUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${currentApiKey}`;
+                const seed = Math.floor(Math.random() * 1000000);
+                const encodedPrompt = encodeURIComponent(optimizedPrompt);
+                const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?model=flux&width=1024&height=1024&seed=${seed}&nologo=true`;
 
-                const response = await fetch(imagenUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        instances: [{ prompt: englishPrompt }],
-                        parameters: {
-                            sampleCount: 1,
-                            aspectRatio: "1:1",
-                            outputMimeType: "image/jpeg"
-                        }
-                    })
-                });
+                const res = await fetch(imageUrl);
+                if (!res.ok) throw new Error('Échec génération image');
 
-                const data = await response.json();
-
-                if (!response.ok || !data.predictions || !data.predictions[0]?.bytesBase64Encoded) {
-                    throw new Error(data.error?.message || 'Failed to generate image via Imagen');
-                }
-
-                const imageBase64 = data.predictions[0].bytesBase64Encoded;
-                const imageBuffer = Buffer.from(imageBase64, 'base64');
+                const arrayBuffer = await res.arrayBuffer();
+                const imageBuffer = Buffer.from(arrayBuffer);
 
                 await sock.sendPresenceUpdate('paused', sender);
                 await sock.sendMessage(sender, { 
@@ -229,23 +216,34 @@ async function startBot() {
                 return;
 
             } catch (err) {
-                console.error('Imagen Error:', err);
+                console.error('Image Error:', err);
                 await sock.sendPresenceUpdate('paused', sender);
                 await sock.sendMessage(sender, { 
-                    text: '⚠️ Tra mochkil f generation dial t-tswira. 3awd jereb mn hna chwia.' 
+                    text: '⚠️ Tra mochkil f generation dial t-tswira. 3awd jereb.' 
                 }, { quoted: m });
                 return;
             }
         }
 
-        // 2. Gemini Multimodal
+        // ==========================================
+        // 2. Gemini Multimodal + Live Web Search (Antigravity Agent)
+        // ==========================================
         try {
             await sock.sendPresenceUpdate('composing', sender);
 
-            const systemPrompt = `You are a helpful, intelligent WhatsApp AI assistant.
-1. Formatting: NEVER use '#' or '###' headers. Use emojis and bold text (e.g. 📌 **العنوان**) for sections.
-2. Voice & Audio: Mentally transcribe and understand Moroccan Darija, Arabic, French, and English fluently. Answer directly and naturally.
-3. Language: Dynamically match the user's language (especially Moroccan Darija).`;
+            const isExplicitSearch = textContent.startsWith('/search') || textContent.startsWith('!search');
+            let queryText = textContent;
+
+            if (isExplicitSearch) {
+                queryText = textContent.replace(/^(\/search|!search)/, '').trim();
+                await sock.sendMessage(sender, { text: '🌐 Kan-9elleb f l-Web f wa9t l-fe3li...' }, { quoted: m });
+            }
+
+            const systemPrompt = `You are a smart, autonomous WhatsApp AI agent.
+1. Formatting: NEVER use '#' or '###' headers. Use bold text and emojis (e.g. 📌 **العنوان**) for sections.
+2. Web Search: You have real-time Google Search capability enabled. If the user asks about recent events, current news, sports, weather, live exchange rates, or explicit search queries, use Google Search to provide up-to-date and accurate facts.
+3. Voice & Audio: Mentally transcribe and understand Moroccan Darija, Arabic, French, and English fluently. Answer directly and naturally.
+4. Language: Dynamically match the user's language (especially Moroccan Darija).`;
 
             let contents = [];
 
@@ -257,7 +255,7 @@ async function startBot() {
                         mimeType: 'audio/ogg; codecs=opus'
                     }
                 });
-                contents.push("Sme3 mzian l had l-vocal (fih darija awla lougha khora) w jaweb 3la dakshi li t-gal fih b tari9a direct w mofida.");
+                contents.push("Sme3 mzian l had l-vocal w jaweb 3la dakshi li fih b tari9a direct.");
             } else if (msgType === 'imageMessage') {
                 const buffer = await downloadMediaMessage(m, 'buffer', {});
                 contents.push({
@@ -266,7 +264,7 @@ async function startBot() {
                         mimeType: rawMessage.imageMessage.mimetype || 'image/jpeg'
                     }
                 });
-                contents.push(textContent || "Chouf had t-tswira mzian w chre7 lia chno fiha awla jaweb 3la sou2al dyali.");
+                contents.push(queryText || "Chouf had t-tswira mzian w chre7 lia chno fiha.");
             } else if (msgType === 'documentMessage') {
                 const mime = rawMessage.documentMessage.mimetype || '';
                 if (mime.includes('pdf')) {
@@ -277,63 +275,72 @@ async function startBot() {
                             mimeType: 'application/pdf'
                         }
                     });
-                    contents.push(textContent || "Lakhkhess lia had l-fichier PDF w 3tini l-moufid fih.");
+                    contents.push(queryText || "Lakhkhess lia had l-fichier PDF.");
                 } else {
                     await sock.sendPresenceUpdate('paused', sender);
-                    await sock.sendMessage(sender, { text: '⚠️ Had l-weqt kan-9blou ghir les fichiers PDF.' }, { quoted: m });
+                    await sock.sendMessage(sender, { text: '⚠️ Kan-9blou ghir les fichiers PDF.' }, { quoted: m });
                     return;
                 }
             } else {
-                if (!textContent) {
+                if (!queryText) {
                     await sock.sendPresenceUpdate('paused', sender);
                     return;
                 }
-                contents.push(textContent);
+                contents.push(queryText);
             }
 
             let responseText = null;
             let attempts = 0;
+            const modelsToTry = ['gemini-3.5-flash-lite', 'gemini-2.0-flash'];
 
             while (!responseText && attempts < API_KEYS.length) {
-                try {
-                    const aiInstance = getNextGenAI();
-                    const model = aiInstance.getGenerativeModel({
-                        model: 'gemini-3.5-flash',
-                        systemInstruction: systemPrompt
-                    });
+                const aiInstance = getNextGenAI();
+                if (!aiInstance) break;
 
-                    if (msgType !== 'imageMessage' && msgType !== 'audioMessage' && msgType !== 'documentMessage') {
-                        if (!userChats.has(sender)) userChats.set(sender, []);
-                        const history = userChats.get(sender);
+                for (const currentModelName of modelsToTry) {
+                    try {
+                        // Kheddemna Google Search Tool (Antigravity Grounding)
+                        const model = aiInstance.getGenerativeModel({
+                            model: currentModelName,
+                            systemInstruction: systemPrompt,
+                            tools: [{ googleSearch: {} }]
+                        });
 
-                        const chat = model.startChat({ history });
-                        const result = await chat.sendMessage(textContent);
-                        responseText = result.response.text();
+                        if (msgType !== 'imageMessage' && msgType !== 'audioMessage' && msgType !== 'documentMessage') {
+                            if (!userChats.has(sender)) userChats.set(sender, []);
+                            const history = userChats.get(sender);
 
-                        history.push(
-                            { role: 'user', parts: [{ text: textContent }] },
-                            { role: 'model', parts: [{ text: responseText }] }
-                        );
-                        if (history.length > 16) history.splice(0, history.length - 16);
-                    } else {
-                        const result = await model.generateContent(contents);
-                        responseText = result.response.text();
+                            const chat = model.startChat({ history });
+                            const result = await chat.sendMessage(queryText);
+                            responseText = result.response.text();
+
+                            history.push(
+                                { role: 'user', parts: [{ text: queryText }] },
+                                { role: 'model', parts: [{ text: responseText }] }
+                            );
+                            if (history.length > 16) history.splice(0, history.length - 16);
+                        } else {
+                            const result = await model.generateContent(contents);
+                            responseText = result.response.text();
+                        }
+
+                        if (responseText) break;
+                    } catch (err) {
+                        console.warn(`Model ${currentModelName} failed:`, err.message);
                     }
-                } catch (err) {
-                    attempts++;
-                    console.error(`Attempt with key ${currentKeyIndex} failed:`, err.message);
                 }
+                attempts++;
             }
 
             if (!responseText) {
-                throw new Error("Ga3 les clés API fihom mochkil.");
+                throw new Error("Tous les modèles ou clés ont échoué.");
             }
 
             await sock.sendPresenceUpdate('paused', sender);
             await sock.sendMessage(sender, { text: responseText }, { quoted: m });
 
         } catch (error) {
-            console.error('Processing Error:', error);
+            console.error('Erreur traitement :', error);
             await sock.sendPresenceUpdate('paused', sender);
             await sock.sendMessage(sender, { 
                 text: '⚠️ Tra mochkil sghir f l-khedma dial l-message, 3awd sifto daba.' 
