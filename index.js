@@ -9,17 +9,33 @@ const pino = require('pino');
 const http = require('http');
 require('dotenv').config();
 
-// 1. Server HTTP bash Render yb9a active
+// 1. Server HTTP bash Render yb9a dima faieq
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('WhatsApp Gemini Bot is active 24/7!\n');
+    res.end('WhatsApp Gemini Bot is alive 24/7!\n');
 });
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// 2. Gestion dyal les clés API bzaf (Rotation)
+const apiKeysEnv = process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || '';
+const API_KEYS = apiKeysEnv.split(',').map(key => key.trim()).filter(Boolean);
 
-// Memory dyal l-conversations
+if (API_KEYS.length === 0) {
+    console.error("CRITICAL: Ma kaynach 7ta chi Gemini API Key!");
+} else {
+    console.log(`Loaded ${API_KEYS.length} Gemini API Key(s) for rotation.`);
+}
+
+let currentKeyIndex = 0;
+
+function getNextGenAI() {
+    const key = API_KEYS[currentKeyIndex];
+    currentKeyIndex = (currentKeyIndex + 1) % API_KEYS.length;
+    return new GoogleGenerativeAI(key);
+}
+
+// Memory dyal les conversations
 const userChats = new Map();
 
 async function startBot() {
@@ -89,33 +105,60 @@ async function startBot() {
                 return;
             }
 
-            // Instructions dial Gemini
             const systemPrompt = `You are a helpful and smart WhatsApp AI assistant.
 1. Language: Always match the user's language (use Moroccan Darija dynamically when spoken to in it).
 2. WhatsApp Format: NEVER use markdown headers like '#', '##', or '###'. WhatsApp does not support them. Use emojis and bold text with double asterisks for section headers (e.g., 📌 **العنوان هنا**).
 3. Length and Precision: Keep basic greetings and simple questions brief, clear, and direct. When asked for details, comprehensive guides, or long topics, provide full, deep, and structured answers.
 4. Tone: Engaging, natural, and helpful without robotic filler phrases.`;
 
-            const model = genAI.getGenerativeModel({
-                model: 'gemini-3.5-flash',
-                systemInstruction: systemPrompt
-            });
+            // Function bach t-gérer rotation m3a fallback ila tbloqat chi clé
+            let responseText = null;
+            let attempts = 0;
 
-            if (!userChats.has(sender)) {
-                userChats.set(sender, model.startChat({ history: [] }));
+            while (!responseText && attempts < API_KEYS.length) {
+                try {
+                    const aiInstance = getNextGenAI();
+                    const model = aiInstance.getGenerativeModel({
+                        model: 'gemini-2.5-flash',
+                        systemInstruction: systemPrompt
+                    });
+
+                    if (!userChats.has(sender)) {
+                        userChats.set(sender, []);
+                    }
+
+                    const history = userChats.get(sender);
+                    const chat = model.startChat({ history });
+                    const result = await chat.sendMessage(messageBody);
+                    responseText = result.response.text();
+
+                    // Mettre à jour l-history dyal had l-user
+                    history.push(
+                        { role: 'user', parts: [{ text: messageBody }] },
+                        { role: 'model', parts: [{ text: responseText }] }
+                    );
+
+                    // Khzen ghir les 10 messages l-khren bash mat-t9alch la requête
+                    if (history.length > 20) {
+                        history.splice(0, history.length - 20);
+                    }
+
+                } catch (apiErr) {
+                    attempts++;
+                    console.error(`Clé API n°${currentKeyIndex} wa93 fiha mouchkil. Kan-jerrbo clé khora...`, apiErr.message);
+                }
             }
 
-            const chat = userChats.get(sender);
-            const result = await chat.sendMessage(messageBody);
-            const responseText = result.response.text();
+            if (!responseText) {
+                throw new Error("Ga3 les clés API mbloqyine awla fihom mochkil.");
+            }
 
             await sock.sendPresenceUpdate('paused', sender);
             await sock.sendMessage(sender, { text: responseText }, { quoted: m });
 
         } catch (error) {
-            console.error('Gemini error:', error);
+            console.error('Erreur finale:', error);
             await sock.sendPresenceUpdate('paused', sender);
-            userChats.delete(sender);
             await sock.sendMessage(sender, { 
                 text: '⚠️ Smeh lia, tra bloquage sghir. 3awd sift lia l-sou2al dyalk daba w ghadi njawbk direct!' 
             }, { quoted: m });
