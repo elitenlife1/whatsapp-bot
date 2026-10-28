@@ -10,10 +10,10 @@ const pino = require('pino');
 const http = require('http');
 require('dotenv').config();
 
-// 1. Server HTTP bash Render yb9a dima khdam m3a UptimeRobot
+// 1. Server HTTP bash UptimeRobot yb9a dima feyyeq Render
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('WhatsApp Gemini Bot is alive 24/7!\n');
+    res.end('WhatsApp Gemini 3.5 Bot is alive 24/7!\n');
 });
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
@@ -78,11 +78,15 @@ async function startBot() {
         const { connection, lastDisconnect } = update;
         if (connection === 'close') {
             const statusCode = lastDisconnect?.error?.output?.statusCode;
-            if (statusCode !== DisconnectReason.loggedOut) {
-                setTimeout(() => startBot(), 3000);
+            const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+            console.log(`Connection closed (status: ${statusCode}). Reconnecting: ${shouldReconnect}`);
+            if (shouldReconnect) {
+                setTimeout(() => startBot(), 4000);
+            } else {
+                console.log('Logged out! Khassk t-3awed pairing code mn jdid.');
             }
         } else if (connection === 'open') {
-            console.log('WhatsApp Bot is ONLINE and ready with Google Imagen 3 & Multimodal!');
+            console.log('WhatsApp Bot is ONLINE and ready with Gemini 3.5 & Imagen 3!');
         }
     });
 
@@ -148,7 +152,7 @@ async function startBot() {
                 await sock.sendPresenceUpdate('composing', sender);
                 await sock.sendMessage(sender, { text: '🎨 Blati d9i9a, kan-generi lik tswira b Google Imagen 3...' }, { quoted: m });
 
-                // Traduction auto mn Darija l English
+                // Traduction auto mn Darija l English b Gemini 3.5
                 let englishPrompt = userPrompt;
                 try {
                     const aiInstance = getNextGenAI();
@@ -163,7 +167,6 @@ async function startBot() {
                     console.log('Traduction skipped:', e.message);
                 }
 
-                // Appel direct l Imagen 3 API b nafs l-key dial Gemini
                 const currentApiKey = API_KEYS[currentKeyIndex];
                 const imagenUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${currentApiKey}`;
 
@@ -207,7 +210,7 @@ async function startBot() {
         }
 
         // ==========================================
-        // 2. Gemini Multimodal (Texte, Audio, Image, PDF)
+        // 2. Gemini 3.5 Flash Multimodal (Texte, Audio, Image, PDF)
         // ==========================================
         try {
             await sock.sendPresenceUpdate('composing', sender);
