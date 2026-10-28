@@ -8,7 +8,16 @@ const {
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const pino = require('pino');
 const http = require('http');
+const fs = require('fs');
 require('dotenv').config();
+
+// Auto-Reset session ila bghiti t-reinitialisi bla shell
+if (process.env.RESET_SESSION === 'true') {
+    if (fs.existsSync('auth_info_baileys')) {
+        fs.rmSync('auth_info_baileys', { recursive: true, force: true });
+        console.log('⚠️ [SESSION] auth_info_baileys deleted successfully!');
+    }
+}
 
 // 1. Server HTTP bash UptimeRobot yb9a dima feyyeq Render
 const server = http.createServer((req, res) => {
@@ -56,7 +65,10 @@ async function startBot() {
         auth: state,
         logger: pino({ level: 'fatal' }),
         printQRInTerminal: false,
-        browser: ["Ubuntu", "Chrome", "20.0.04"]
+        browser: ["Ubuntu", "Chrome", "124.0.6367.207"],
+        connectTimeoutMs: 60000,
+        defaultQueryTimeoutMs: 60000,
+        keepAliveIntervalMs: 25000
     });
 
     sock.ev.on('creds.update', saveCreds);
@@ -64,14 +76,15 @@ async function startBot() {
     if (!sock.authState.creds.registered && process.env.PHONE_NUMBER) {
         setTimeout(async () => {
             try {
-                let code = await sock.requestPairingCode(process.env.PHONE_NUMBER);
+                const cleanPhone = process.env.PHONE_NUMBER.replace(/[^0-9]/g, '');
+                let code = await sock.requestPairingCode(cleanPhone);
                 console.log(`\n========================================`);
-                console.log(`PAIRING CODE: ${code?.match(/.{1,4}/g)?.join('-')}`);
+                console.log(`PAIRING CODE JDDD: ${code?.match(/.{1,4}/g)?.join('-')}`);
                 console.log(`========================================\n`);
             } catch (err) {
-                console.error('Pairing Code error:', err);
+                console.error('Erreur Pairing Code:', err.message);
             }
-        }, 3000);
+        }, 5000);
     }
 
     sock.ev.on('connection.update', (update) => {
@@ -152,7 +165,6 @@ async function startBot() {
                 await sock.sendPresenceUpdate('composing', sender);
                 await sock.sendMessage(sender, { text: '🎨 Blati d9i9a, kan-generi lik tswira b Google Imagen 3...' }, { quoted: m });
 
-                // Traduction auto mn Darija l English b Gemini 3.5
                 let englishPrompt = userPrompt;
                 try {
                     const aiInstance = getNextGenAI();
